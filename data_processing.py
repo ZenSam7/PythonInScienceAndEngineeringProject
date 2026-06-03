@@ -1,7 +1,6 @@
 import pandas as pd
 import pathlib
 from dataclasses import dataclass, field
-from typing import Callable, Any, Iterator
 
 
 # ──────────────────────────────────────────────
@@ -25,7 +24,7 @@ def log_step(method):
 @dataclass
 class PipelineConfig:
     data_dir: str = "DataSet"
-    output_dir: str = "output"
+    output_dir: str = "DataSet"
     file_pattern: str = "*.parquet"
     _encoding: str = field(default="utf-8-sig", repr=False)  # BOM для Excel
 
@@ -156,8 +155,8 @@ class DataCleaner:
     @log_step
     def step6_convert_flags(self) -> "DataCleaner":
         """Конвертируем Y/N флаги в bool"""
-        for col in ["запрос_для_инвалида", "поездка_для_инвалида"]:
-            self.df[col] = self.df[col].map({"Y": True, "N": False})
+        cols = ["запрос_для_инвалида", "поездка_для_инвалида"]
+        self.df[cols] = (self.df[cols] == "Y")
         return self
 
     def run_all(self) -> pd.DataFrame:
