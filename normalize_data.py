@@ -1,123 +1,191 @@
 import pandas as pd
 import pathlib
-
-datasets_folder = pathlib.Path("DataSet")
-
-
-def load_datas() -> pd.DataFrame:
-    """Загружаем файлы"""
-
-    df = pd.DataFrame()
-    for i in datasets_folder.glob("*.parquet"):
-        # Объединяем все файлы
-        temp = pd.read_parquet(r"DataSet\fhvhv_tripdata_2021-01.parquet")
-
-        # Оставляем только понятные колонны
-        valuable_datas = temp.loc[:,
-                         [
-                             "request_datetime",  # Время запроса
-                             "on_scene_datetime",  # Время прибытия
-                             "pickup_datetime",  # Когда в такси зашли
-                             "dropoff_datetime",  # Когда из него вышли
-                             "trip_miles",  # Пройденные мили
-                             "trip_time",  # Пройденное время
-
-                             "base_passenger_fare",  # Тариф
-                             "tolls",  # Общая сумма
-                             "sales_tax",  # Налог Нью-Йорку
-                             "congestion_surcharge",  # Общая собранная сумма всего (?)
-                             "tips",  # Чаевые
-                             "driver_pay",  # Прибыль водителя (после вычета)
-
-                             "wav_request_flag",  # Такси вызывали для инвалида? Y/N
-                             "wav_match_flag"  # Совершалась ли поезда для инвалида?
-                         ]
-                         ]
-
-        df = pd.concat([df, valuable_datas], ignore_index=True)
-
-    return df
+from dataclasses import dataclass, field
+from typing import Callable, Any, Iterator
 
 
-def clean_datas(df: pd.DataFrame) -> pd.DataFrame:
-    """Чистим строки где поездка не имеет смысла"""
-    before = len(df)
-    df = df[(df["driver_pay"] != 0) & (df["trip_time"] != 0) & (df["trip_miles"] != 0)]
-    after = len(df)
-    print(f"Удалено строк: {before - after} ({(before - after) / before * 100:.2f}%)")
+# ──────────────────────────────────────────────
+def log_step(method):
+    """Логирует название шага и кол-во строк до/после"""
+    def wrapper(self) -> "DataCleaner":
+        before = len(self.df)
+        result = method(self)
+        after = len(self.df)
+        dropped = before - after
+        tag = f"[{method.__name__}]"
+        if dropped:
+            print(f"{tag:35} строк: {after:>10,}  (удалено: {dropped:,})")
+        else:
+            print(f"{tag:35} строк: {after:>10,}")
+        return result
+    return wrapper
 
-    return df
+
+# ──────────────────────────────────────────────
+@dataclass
+class PipelineConfig:
+    data_dir: str = "DataSet"
+    output_dir: str = "output"
+    file_pattern: str = "*.parquet"
+    _encoding: str = field(default="utf-8-sig", repr=False)  # BOM для Excel
+
+    @property
+    def encoding(self) -> str:
+        return self._encoding
+
+    @property
+    def output_path(self) -> pathlib.Path:
+        return pathlib.Path(self.output_dir)
 
 
-def normalize_datas(df: pd.DataFrame) -> pd.DataFrame:
-    """Нормализуем на русский лад"""
-    # --- Переименование колонок ---
+# ──────────────────────────────────────────────
+class DataLoader:
+    VALUABLE_COLUMNS = [
+        "request_datetime",
+        "on_scene_datetime",
+        "pickup_datetime",
+        "dropoff_datetime",
+        "trip_miles",
+        "trip_time",
+        "base_passenger_fare",
+        "tolls",
+        "sales_tax",
+        "congestion_surcharge",
+        "tips",
+        "driver_pay",
+        "wav_request_flag",
+        "wav_match_flag",
+    ]
+
+    def __init__(self, config: PipelineConfig):
+        self.config = config
+
+    def load(self) -> pd.DataFrame:
+        frames = []
+        for path in pathlib.Path(self.config.data_dir).glob(self.config.file_pattern):
+            temp = pd.read_parquet(path, columns=self.VALUABLE_COLUMNS)
+            frames.append(temp)
+            print(f"  Загружен: {path.name}  ({len(temp):,} строк)")
+        df = pd.concat(frames, ignore_index=True)
+        print(f"Итого загружено: {len(df):,} строк\n")
+        return df
+
+
+# ──────────────────────────────────────────────
+class DataCleaner:
     COLUMN_RENAME = {
-        "request_datetime": "время_запроса",
-        "on_scene_datetime": "время_прибытия",
-        "pickup_datetime": "начало_поездки",
-        "dropoff_datetime": "конец_поездки",
-        "trip_miles": "мили",
-        "trip_time": "время_в_пути_сек",
-        "base_passenger_fare": "тариф",
-        "tolls": "дорожные_сборы",
-        "sales_tax": "налог",
+        "request_datetime":     "время_запроса",
+        "on_scene_datetime":    "время_прибытия",
+        "pickup_datetime":      "начало_поездки",
+        "dropoff_datetime":     "конец_поездки",
+        "trip_miles":           "мили",
+        "trip_time":            "время_в_пути_сек",
+        "base_passenger_fare":  "тариф",
+        "tolls":                "дорожные_сборы",
+        "sales_tax":            "налог",
         "congestion_surcharge": "надбавка_за_пробки",
-        "tips": "чаевые",
-        "driver_pay": "выплата_водителю",
-        "wav_request_flag": "запрос_для_инвалида",
-        "wav_match_flag": "поездка_для_инвалида",
+        "tips":                 "чаевые",
+        "driver_pay":           "выплата_водителю",
+        "wav_request_flag":     "запрос_для_инвалида",
+        "wav_match_flag":       "поездка_для_инвалида",
     }
-    df = df.rename(columns=COLUMN_RENAME)
 
-    # --- Типы дат ---
-    for col in ["время_запроса", "время_прибытия", "начало_поездки", "конец_поездки"]:
-        df[col] = pd.to_datetime(df[col], errors="coerce")
+    DATETIME_COLUMNS = [
+        "время_запроса", "время_прибытия",
+        "начало_поездки", "конец_поездки",
+    ]
 
-    # --- Производные колонки (имеют аналитический смысл) ---
-    # Время ожидания от запроса до посадки (в минутах)
-    df["ожидание_мин"] = (
-        (df["начало_поездки"] - df["время_запроса"])
-        .dt.total_seconds()
-        .div(60)
-        .round(2)
-    )
+    def __init__(self, df: pd.DataFrame):
+        self.df = df.copy()
 
-    # Перевод миль в километры
-    df["километры"] = (df["мили"] * 1.60934).round(2)
+    @log_step
+    def step1_drop_zero_trips(self) -> "DataCleaner":
+        """Удаляем строки где trip_miles / trip_time / driver_pay == 0"""
+        mask = (
+            (self.df["driver_pay"] != 0) &
+            (self.df["trip_time"]  != 0) &
+            (self.df["trip_miles"] != 0)
+        )
+        self.df = self.df[mask].copy()
+        return self
 
-    # Стоимость за километр
-    df["тариф_за_км"] = (df["тариф"] / df["километры"].replace(0, float("nan"))).round(2)
+    @log_step
+    def step2_drop_null_datetimes(self) -> "DataCleaner":
+        """Удаляем строки с NaT в ключевых временных колонках"""
+        self.df = self.df.dropna(
+            subset=["pickup_datetime", "dropoff_datetime", "request_datetime"]
+        ).copy()
+        return self
 
-    # Час суток — для пиковых анализов
-    df["час_суток"] = df["начало_поездки"].dt.hour
+    @log_step
+    def step3_rename_columns(self) -> "DataCleaner":
+        """Переименовываем колонки на русский лад"""
+        self.df = self.df.rename(columns=self.COLUMN_RENAME)
+        return self
 
-    # Флаги Y/N → bool (удобнее фильтровать)
-    for col in ["запрос_для_инвалида", "поездка_для_инвалида"]:
-        df[col] = df[col].map({"Y": True, "N": False})
+    @log_step
+    def step4_cast_datetimes(self) -> "DataCleaner":
+        """Приводим временные колонки к datetime64"""
+        for col in self.DATETIME_COLUMNS:
+            self.df[col] = pd.to_datetime(self.df[col], errors="coerce")
+        # Заодно чистим NaT которые могли появиться после конвертации
+        self.df = self.df.dropna(subset=self.DATETIME_COLUMNS).copy()
+        return self
 
-    return df
+    @log_step
+    def step5_add_derived_columns(self) -> "DataCleaner":
+        """Добавляем колонки: ожидание, км, тариф/км, час суток"""
+        df = self.df
 
-def save_datas(df: pd.DataFrame):
-    """Сохраняем"""
-    # CSV — с явной кодировкой чтобы кириллица не сломалась
-    df.to_csv(datasets_folder / "поездки_обработанные.csv", index=False, encoding="utf-8-sig")
-    print(f"Сохранено: {len(df):,} строк → {datasets_folder / 'поездки_обработанные.csv'}")
+        df["ожидание_мин"] = (
+            (df["начало_поездки"] - df["время_запроса"])
+            .dt.total_seconds()
+            .div(60)
+            .round(2)
+        )
+        df["километры"] = (df["мили"] * 1.60934).round(2)
+        df["тариф_за_км"] = (
+            df["тариф"] / df["километры"].replace(0, float("nan"))
+        ).round(2)
+        df["час_суток"] = df["начало_поездки"].dt.hour
+        df["день_недели"] = df["начало_поездки"].dt.day_name()
+
+        self.df = df
+        return self
+
+    @log_step
+    def step6_convert_flags(self) -> "DataCleaner":
+        """Конвертируем Y/N флаги в bool"""
+        for col in ["запрос_для_инвалида", "поездка_для_инвалида"]:
+            self.df[col] = self.df[col].map({"Y": True, "N": False})
+        return self
+
+    def run_all(self) -> pd.DataFrame:
+        """Запускает все 6 шагов по цепочке"""
+        print("=" * 55)
+        print("  ПАЙПЛАЙН ОЧИСТКИ ДАННЫХ")
+        print("=" * 55)
+        return (
+            self
+            .step1_drop_zero_trips()
+            .step2_drop_null_datetimes()
+            .step3_rename_columns()
+            .step4_cast_datetimes()
+            .step5_add_derived_columns()
+            .step6_convert_flags()
+            .df
+        )
 
 
-if __name__ == "__main__":
-    print(pd.read_csv(datasets_folder/"поездки_обработанные.csv").head(30))
+# ──────────────────────────────────────────────
+class DataExporter:
+    def __init__(self, config: PipelineConfig):
+        self.config = config
 
-    # df = load_datas()
-    # df = clean_datas(df)
-    # df = normalize_datas(df)
-    # save_datas(df)
+    def to_csv(self, df: pd.DataFrame, filename: str = "поездки_обработанные.csv") -> pathlib.Path:
+        self.config.output_path.mkdir(exist_ok=True)
+        out = self.config.output_path / filename
+        df.to_csv(out, index=False, encoding=self.config.encoding)
+        print(f"\nСохранено: {len(df):,} строк → {out}")
+        return out
 
-    # Матрёшка породнее будет))
-    # save_datas(
-    #     normalize_datas(
-    #         clean_datas(
-    #             load_datas()
-    #         )
-    #     )
-    # )
