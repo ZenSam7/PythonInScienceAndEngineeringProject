@@ -1,24 +1,27 @@
-from data_processing import PipelineConfig, DataLoader, DataCleaner, DataExporter
+import pandas as pd
+
+from data_processing import Config, DataLoader, DataCleaner, DataExporter, Timer
 from iterators import TripIterable, MapIterator, FilterIterator
 
 
 if __name__ == "__main__":
-    config = PipelineConfig()
+    config = Config()
+    config.raw_file_pattern = "*01.parquet"  # только 1 файл, чтобы не так много ждать
     loader = DataLoader(config)
 
-    # Если чистых данных нет, то оно само запустит pipeline
-    clean_df = loader.get_data()
+    # # Если чистых данных нет, то оно само запустит pipeline
+    # clean_df = loader.get_data()
 
     # Матрёшка без pandas
-    trips = TripIterable(clean_df)
+    trips = TripIterable(config)
 
     утренние_выплаты = MapIterator(
-        FilterIterator(trips, lambda r: r["час_суток"] == 8),
-        lambda r: round(r["выплата_водителю"], 2)
+        FilterIterator(trips, lambda r: 6 <= r["час_суток"] <= 10),
+        lambda r: r["выплата_водителю"]
     )
 
-    # Первые 5 значений — лениво, без материализации всего датасета
-    for i, pay in enumerate(утренние_выплаты):
-        print(pay)
-        if i >= 4:
+    # Первые 10 значений — лениво, без материализации всего датасета
+    for i, выплата in enumerate(утренние_выплаты):
+        print(выплата)
+        if i >= 9:
             break

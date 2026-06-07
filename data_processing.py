@@ -17,14 +17,14 @@ def log_step(method):
         if dropped:
             print(f"(удалено: {dropped:,})", end="")
         print()
-        
+
         return result
     return wrapper
 
 
 class Timer:
     """Контекстный менеджер для засечения времени выполнения кода"""
-    def __init__(self, name: str = "Код"):
+    def __init__(self, name = "Код"):
         self.name = name
         self.start_time = None
         self.end_time = None
@@ -50,7 +50,7 @@ class Timer:
 
 # ──────────────────────────────────────────────
 @dataclass
-class PipelineConfig:
+class Config:
     data_dir: str = "DataSet"
     output_dir: str = "DataSet"
     raw_file_pattern: str = "*.parquet"
@@ -65,33 +65,71 @@ class PipelineConfig:
     def output_path(self) -> pathlib.Path:
         return pathlib.Path(self.output_dir)
 
+    # Выполняет 2 фукнции:
+    # 1) Какие колонны из сырых данных собираем (это ключи)
+    # 2) Что на что переименовываем
+    COLUMNS = {
+        "request_datetime":     "время_запроса",
+        "on_scene_datetime":    "время_прибытия",
+        "pickup_datetime":      "начало_поездки",
+        "dropoff_datetime":     "конец_поездки",
+        "trip_miles":           "мили",
+        "trip_time":            "время_в_пути_сек",
+        "base_passenger_fare":  "тариф",
+        "tolls":                "дорожные_сборы",
+        "sales_tax":            "налог",
+        "congestion_surcharge": "надбавка_за_пробки",
+        "tips":                 "чаевые",
+        "driver_pay":           "выплата_водителю",
+        "wav_request_flag":     "запрос_для_инвалида",
+        "wav_match_flag":       "поездка_для_инвалида",
+    }
+
+    ADDED_COLUMNS = {
+        "километры":            float,
+        "тариф_за_км":          float,
+        "ожидание_мин":         float,
+        "час_суток":            int,
+        "день_недели":          str,
+    }
+
+    COLUMNS_TYPE = {
+        "время_запроса":        datetime,
+        "время_прибытия":       datetime,
+        "начало_поездки":       datetime,
+        "конец_поездки":        datetime,
+        "мили":                 float,
+        "время_в_пути_сек":     float,
+        "тариф":                float,
+        "дорожные_сборы":       float,
+        "налог":                float,
+        "надбавка_за_пробки":   float,
+        "чаевые":               float,
+        "выплата_водителю":     float,
+        "запрос_для_инвалида":  bool,
+        "поездка_для_инвалида": bool,
+    }
+    COLUMNS_TYPE.update(ADDED_COLUMNS)
+
+    # Какой тип как мы хотим переводить из строки
+    CONVERT_FUNCS = {
+        int:        int,
+        float:      float,
+        str:        str,
+        bool:       lambda string: string=="True",
+        datetime:   lambda string: datetime.strptime(string, "%Y-%m-%d %H:%M:%S"),
+    }
+
 
 # ──────────────────────────────────────────────
 class DataLoader:
-    VALUABLE_COLUMNS = [
-        "request_datetime",
-        "on_scene_datetime",
-        "pickup_datetime",
-        "dropoff_datetime",
-        "trip_miles",
-        "trip_time",
-        "base_passenger_fare",
-        "tolls",
-        "sales_tax",
-        "congestion_surcharge",
-        "tips",
-        "driver_pay",
-        "wav_request_flag",
-        "wav_match_flag",
-    ]
-
-    def __init__(self, config: PipelineConfig):
+    def __init__(self, config: Config):
         self.config = config
 
     def load_raw(self) -> pd.DataFrame:
         frames = []
         for path in pathlib.Path(self.config.data_dir).glob(self.config.raw_file_pattern):
-            temp = pd.read_parquet(path, columns=self.VALUABLE_COLUMNS)
+            temp = pd.read_parquet(path, columns=list(self.config.COLUMNS.keys()))
             frames.append(temp)
             print(f"  Загружен: {path.name}  ({len(temp):,} строк)")
         df = pd.concat(frames, ignore_index=True)
@@ -125,29 +163,8 @@ class DataLoader:
 
 # ──────────────────────────────────────────────
 class DataCleaner:
-    COLUMN_RENAME = {
-        "request_datetime":     "время_запроса",
-        "on_scene_datetime":    "время_прибытия",
-        "pickup_datetime":      "начало_поездки",
-        "dropoff_datetime":     "конец_поездки",
-        "trip_miles":           "мили",
-        "trip_time":            "время_в_пути_сек",
-        "base_passenger_fare":  "тариф",
-        "tolls":                "дорожные_сборы",
-        "sales_tax":            "налог",
-        "congestion_surcharge": "надбавка_за_пробки",
-        "tips":                 "чаевые",
-        "driver_pay":           "выплата_водителю",
-        "wav_request_flag":     "запрос_для_инвалида",
-        "wav_match_flag":       "поездка_для_инвалида",
-    }
-
-    DATETIME_COLUMNS = [
-        "время_запроса", "время_прибытия",
-        "начало_поездки", "конец_поездки",
-    ]
-
-    def __init__(self, df: pd.DataFrame):
+    def __init__(self, config: Config, df: pd.DataFrame):
+        self.config = config
         self.df = df.copy()
 
     @log_step
@@ -172,21 +189,24 @@ class DataCleaner:
     @log_step
     def step3_rename_columns(self) -> "DataCleaner":
         """Переименовываем колонки на русский лад"""
-        self.df = self.df.rename(columns=self.COLUMN_RENAME)
+        self.df = self.df.rename(columns=self.config.COLUMN_RENAME)
         return self
 
     @log_step
     def step4_cast_datetimes(self) -> "DataCleaner":
         """Приводим временные колонки к datetime64"""
-        for col in self.DATETIME_COLUMNS:
+        datetime_cols = [name for name, type in self.config.COLUMNS_TYPE if type is datetime]
+
+        for col in datetime_cols:
             self.df[col] = pd.to_datetime(self.df[col], errors="coerce")
         # Заодно чистим NaT которые могли появиться после конвертации
-        self.df = self.df.dropna(subset=self.DATETIME_COLUMNS).copy()
+        self.df = self.df.dropna(subset=datetime_cols).copy()
         return self
 
     @log_step
     def step5_add_derived_columns(self) -> "DataCleaner":
-        """Добавляем колонки: ожидание, км, тариф/км, час суток"""
+        """Добавляем колонки: ожидание, км, тариф/км, час суток
+        ADDED_COLUMNS"""
         df = self.df
 
         df["ожидание_мин"] = (
@@ -195,10 +215,10 @@ class DataCleaner:
             .div(60)
             .round(2)
         )
-        df["километры"] = (df["мили"] * 1.60934).round(2)
+        df["километры"] = (df["мили"] * 1.60934).round(3)
         df["тариф_за_км"] = (
             df["тариф"] / df["километры"].replace(0, float("nan"))
-        ).round(2)
+        ).round(3)
         df["час_суток"] = df["начало_поездки"].dt.hour
         df["день_недели"] = df["начало_поездки"].dt.day_name()
 
@@ -231,7 +251,7 @@ class DataCleaner:
 
 # ──────────────────────────────────────────────
 class DataExporter:
-    def __init__(self, config: PipelineConfig):
+    def __init__(self, config: Config):
         self.config = config
 
     def to_csv(self, df: pd.DataFrame, filename: str = "поездки_обработанные.csv") -> pathlib.Path:
