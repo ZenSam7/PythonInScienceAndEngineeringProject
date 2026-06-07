@@ -1,6 +1,7 @@
 from pathlib import Path
 from dataclasses import dataclass, field
 from datetime import datetime
+from strategies import CSVExportStrategy, ExportStrategy, JSONExportStrategy
 
 
 # ──────────────────────────────────────────────
@@ -56,8 +57,14 @@ class Config:
     data_dir: str = "DataSet"
     output_dir: str = "DataSet"
     raw_file_pattern: str = "*.parquet"
-    cleaned_file_name: str = "поездки_обработанные.csv"
+    cleaned_file: str = "обработанные_поездки"  # Без расширения
     _encoding: str = field(default="utf-8-sig", repr=False)  # BOM для Excel
+
+    DEFAULT_EXPORT_STRATEGY: ExportStrategy = CSVExportStrategy()
+
+    @property
+    def cleaned_file_name(self):
+        return self.cleaned_file + self.DEFAULT_EXPORT_STRATEGY.file_extension
 
     @property
     def encoding(self) -> str:
@@ -118,6 +125,6 @@ class Config:
         int:      int,
         float:    float,
         str:      str,
-        bool:     lambda string: string=="True",
+        bool: lambda string: string == "True",
         datetime: lambda string: datetime.strptime(string, "%Y-%m-%d %H:%M:%S"),
     }

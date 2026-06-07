@@ -1,16 +1,18 @@
 from data_processing import DataLoader, DataCleaner, DataExporter
 from config_and_tools import Timer, Config
 from iterators import TripIterable, MapIterator, FilterIterator
+from strategies import CSVExportStrategy
 
 
 if __name__ == "__main__":
     config = Config()
     config.raw_file_pattern = "*01.parquet"  # только 1 файл, чтобы не так много ждать
+    config.DEFAULT_EXPORT_STRATEGY = CSVExportStrategy()
     loader = DataLoader(config)
 
-    # Если чистых данных нет, то оно само запустит pipeline
-    clean_df = loader.get_data()
-    del clean_df  # использовать будем ленивые итераторы
+    # # Если чистых данных нет, то оно само запустит pipeline
+    # clean_df = loader.get_data()
+    # del clean_df  # использовать будем ленивые итераторы
 
     trips = TripIterable(config)
 
