@@ -1,4 +1,4 @@
-import pathlib
+from pathlib import Path
 from dataclasses import dataclass, field
 from datetime import datetime
 
@@ -64,8 +64,8 @@ class Config:
         return self._encoding
 
     @property
-    def output_path(self) -> pathlib.Path:
-        return pathlib.Path(self.output_dir)
+    def output_path(self) -> Path:
+        return Path(self.output_dir)
 
     # Выполняет 2 фукнции:
     # 1) Какие колонны из сырых данных собираем (это ключи)

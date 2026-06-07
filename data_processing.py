@@ -1,5 +1,6 @@
+from __future__ import annotations  # Убираем ошибки с аннотацией типов
 import pandas as pd
-import pathlib
+from pathlib import Path
 from dataclasses import dataclass, field
 from config_and_tools import Timer, log_step, Config,datetime
 
@@ -10,19 +11,29 @@ class DataLoader:
         self.config = config
 
     def load_raw(self) -> pd.DataFrame:
+        Path(self.config.data_dir).mkdir(exist_ok=True)
         frames = []
-        for path in pathlib.Path(self.config.data_dir). \
-                glob(self.config.raw_file_pattern):
+
+        for path in Path(self.config.data_dir).glob(self.config.raw_file_pattern):
             temp = pd.read_parquet(path, columns=list(self.config.COLUMNS.keys()))
             frames.append(temp)
             print(f"  Загружен: {path.name}  ({len(temp):,} строк)")
+
+        # Исключение
+        if not frames:
+            raise EmptyDatasetError(
+                f"Не найдено файлов по шаблону '{self.config.raw_file_pattern}' "
+                f"в директории '{self.config.data_dir}'\n"
+                f"Скачайте датасет по ссылке в README"
+            )
+
         df = pd.concat(frames, ignore_index=True)
         print(f"Итого загружено: {len(df):,} строк\n")
         return df
 
     def load_clean(self) -> pd.DataFrame:
         """Загружает уже обработанный CSV"""
-        path = pathlib.Path(self.config.output_dir) / self.config.cleaned_file_name
+        path = Path(self.config.output_dir) / self.config.cleaned_file_name
         if not path.exists():
             raise FileNotFoundError(f"Чистых данных нет: {path}")
         df = pd.read_csv(path, encoding=self.config.encoding)
@@ -30,8 +41,8 @@ class DataLoader:
         return df
 
     def get_data(self) -> pd.DataFrame:
-        """Если есть уже очищенные данные, то открываем сначала их.
-        если нету, то обрабатываем сырые данные"""
+        """Если есть уже очищенные данные — открываем их
+        Если нет — обрабатываем сырые данные"""
         clean_path = self.config.output_path / self.config.cleaned_file_name
 
         if clean_path.exists():
@@ -52,18 +63,18 @@ class DataCleaner:
         self.df = df.copy()
 
     @log_step
-    def step1_drop_zero_trips(self) -> "DataCleaner":
+    def step1_drop_zero_trips(self) -> DataCleaner:
         """Удаляем строки где trip_miles / trip_time / driver_pay == 0"""
         mask = (
-                (self.df["driver_pay"] != 0) &
-                (self.df["trip_time"] != 0) &
-                (self.df["trip_miles"] != 0)
+            (self.df["driver_pay"] != 0) &
+            (self.df["trip_time"]  != 0) &
+            (self.df["trip_miles"] != 0)
         )
         self.df = self.df[mask].copy()
         return self
 
     @log_step
-    def step2_drop_null_datetimes(self) -> "DataCleaner":
+    def step2_drop_null_datetimes(self) -> DataCleaner:
         """Удаляем строки с NaT в ключевых временных колонках"""
         self.df = self.df.dropna(
             subset=["pickup_datetime", "dropoff_datetime", "request_datetime"]
@@ -71,30 +82,30 @@ class DataCleaner:
         return self
 
     @log_step
-    def step3_rename_columns(self) -> "DataCleaner":
+    def step3_rename_columns(self) -> DataCleaner:
         """Переименовываем колонки на русский лад"""
         self.df = self.df.rename(columns=self.config.COLUMNS)
         return self
 
     @log_step
-    def step4_cast_datetimes(self) -> "DataCleaner":
+    def step4_cast_datetimes(self) -> DataCleaner:
         """Приводим временные колонки к datetime64"""
         datetime_cols = [
             name
-            for name, type in self.config.COLUMNS_TYPE.items()
-            if type == datetime
+            for name, col_type in self.config.COLUMNS_TYPE.items()
+            if col_type == datetime
         ]
 
         for col in datetime_cols:
             self.df[col] = pd.to_datetime(self.df[col], errors="coerce")
-        # Заодно чистим NaT которые могли появиться после конвертации
+
+        # Чистим NaT которые могли появиться после конвертации
         self.df = self.df.dropna(subset=datetime_cols).copy()
         return self
 
     @log_step
-    def step5_add_derived_columns(self) -> "DataCleaner":
-        """Добавляем колонки: ожидание, км, тариф/км, час суток
-        ADDED_COLUMNS"""
+    def step5_add_derived_columns(self) -> DataCleaner:
+        """Добавляем колонки ADDED_COLUMNS: ожидание, км, тариф/км, час суток"""
         df = self.df
 
         df["ожидание_мин"] = (
@@ -103,18 +114,18 @@ class DataCleaner:
             .div(60)
             .round(2)
         )
-        df["километры"] = (df["мили"] * 1.60934).round(3)
+        df["километры"]   = (df["мили"] * 1.60934).round(3)
         df["тариф_за_км"] = (
-                df["тариф"] / df["километры"].replace(0, float("nan"))
+            df["тариф"] / df["километры"].replace(0, float("nan"))
         ).round(3)
-        df["час_суток"] = df["начало_поездки"].dt.hour
+        df["час_суток"]   = df["начало_поездки"].dt.hour
         df["день_недели"] = df["начало_поездки"].dt.day_name()
 
         self.df = df
         return self
 
     @log_step
-    def step6_convert_flags(self) -> "DataCleaner":
+    def step6_convert_flags(self) -> DataCleaner:
         """Конвертируем Y/N флаги в bool"""
         cols = ["запрос_для_инвалида", "поездка_для_инвалида"]
         self.df[cols] = self.df[cols] == "Y"
@@ -125,7 +136,7 @@ class DataCleaner:
         print("=" * 55)
         print("  ПАЙПЛАЙН ОЧИСТКИ ДАННЫХ")
         print("=" * 55)
-        return (
+        result = (
             self
             .step1_drop_zero_trips()
             .step2_drop_null_datetimes()
@@ -135,6 +146,14 @@ class DataCleaner:
             .step6_convert_flags()
             .df
         )
+
+        # Исключение
+        if result.empty:
+            raise EmptyDatasetError(
+                "После очистки данных датафрейм оказался пустым"
+            )
+
+        return result
 
 
 # ──────────────────────────────────────────────
