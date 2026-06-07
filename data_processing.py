@@ -1,6 +1,7 @@
 import pandas as pd
 import pathlib
 from dataclasses import dataclass, field
+from datetime import datetime
 
 
 # ──────────────────────────────────────────────
@@ -19,6 +20,32 @@ def log_step(method):
         
         return result
     return wrapper
+
+
+class Timer:
+    """Контекстный менеджер для засечения времени выполнения кода"""
+    def __init__(self, name: str = "Код"):
+        self.name = name
+        self.start_time = None
+        self.end_time = None
+
+    def __enter__(self):
+        self.start_time = datetime.now()
+        print(f"{self.name} начался...", end=" ")
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.end_time = datetime.now()
+        elapsed = self.end_time - self.start_time
+        min, sec = map(int, divmod(elapsed.total_seconds(), 60))
+
+        print(f"завершился")
+        print(f"Прошло времени: {min:02}:{sec:02}")
+
+        if exc_type is not None:
+            print(f"❌ Ошибка: {exc_val}")
+
+        return False  # Пробросить исключение, если оно было
 
 
 # ──────────────────────────────────────────────
@@ -208,10 +235,11 @@ class DataExporter:
         self.config = config
 
     def to_csv(self, df: pd.DataFrame, filename: str = "поездки_обработанные.csv") -> pathlib.Path:
-        print("Экспортируем...")
-        self.config.output_path.mkdir(exist_ok=True)
-        out = self.config.output_path / filename
-        df.to_csv(out, index=False, encoding=self.config.encoding)
-        print(f"\nСохранено: {len(df):,} строк → {out}")
+        with Timer("Экспорт в csv"):
+            self.config.output_path.mkdir(exist_ok=True)
+            out = self.config.output_path / filename
+            df.to_csv(out, index=False, encoding=self.config.encoding)
+
+        print(f"Сохранено: {len(df):,} строк → {out}")
         return out
 
