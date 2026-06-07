@@ -12,15 +12,15 @@ if __name__ == "__main__":
     # # Если чистых данных нет, то оно само запустит pipeline
     # clean_df = loader.get_data()
 
-    # Матрёшка без pandas
     trips = TripIterable(config)
 
+    # Матрёшка без pandas
     утренние_выплаты = MapIterator(
         FilterIterator(trips, lambda r: 6 <= r["час_суток"] <= 10),
-        lambda r: r["выплата_водителю"]
+        lambda r: r["выплата_водителю"],
     )
 
-    # Первые 10 значений — лениво, без материализации всего датасета
+    # Первые 10 значений, без материализации всего датасета
     for i, выплата in enumerate(утренние_выплаты):
         print(выплата)
         if i >= 9:

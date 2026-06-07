@@ -7,6 +7,7 @@ from datetime import datetime
 # ──────────────────────────────────────────────
 def log_step(method):
     """Логирует название шага и кол-во строк до/после"""
+
     def wrapper(self) -> "DataCleaner":
         before = len(self.df)
         result = method(self)
@@ -19,12 +20,14 @@ def log_step(method):
         print()
 
         return result
+
     return wrapper
 
 
 class Timer:
     """Контекстный менеджер для засечения времени выполнения кода"""
-    def __init__(self, name = "Код"):
+
+    def __init__(self, name="Код"):
         self.name = name
         self.start_time = None
         self.end_time = None
@@ -128,7 +131,8 @@ class DataLoader:
 
     def load_raw(self) -> pd.DataFrame:
         frames = []
-        for path in pathlib.Path(self.config.data_dir).glob(self.config.raw_file_pattern):
+        for path in pathlib.Path(self.config.data_dir).\
+                glob(self.config.raw_file_pattern):
             temp = pd.read_parquet(path, columns=list(self.config.COLUMNS.keys()))
             frames.append(temp)
             print(f"  Загружен: {path.name}  ({len(temp):,} строк)")
@@ -195,7 +199,11 @@ class DataCleaner:
     @log_step
     def step4_cast_datetimes(self) -> "DataCleaner":
         """Приводим временные колонки к datetime64"""
-        datetime_cols = [name for name, type in self.config.COLUMNS_TYPE if type is datetime]
+        datetime_cols = [
+            name
+            for name, type in self.config.COLUMNS_TYPE
+            if type is datetime
+        ]
 
         for col in datetime_cols:
             self.df[col] = pd.to_datetime(self.df[col], errors="coerce")
@@ -229,7 +237,7 @@ class DataCleaner:
     def step6_convert_flags(self) -> "DataCleaner":
         """Конвертируем Y/N флаги в bool"""
         cols = ["запрос_для_инвалида", "поездка_для_инвалида"]
-        self.df[cols] = (self.df[cols] == "Y")
+        self.df[cols] = self.df[cols] == "Y"
         return self
 
     def run_all(self) -> pd.DataFrame:
@@ -262,4 +270,3 @@ class DataExporter:
 
         print(f"Сохранено: {len(df):,} строк → {out}")
         return out
-

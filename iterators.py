@@ -8,6 +8,7 @@ class TripIterator:
     """
     Файл открывается при создании, закрывается по StopIteration или __del__
     """
+
     def __init__(self, config: Config, filepath: pathlib.Path):
         # О существовании filepath уже позаботились в TripIterable
         self._file = open(filepath, encoding=config.encoding, newline="")
@@ -21,10 +22,12 @@ class TripIterator:
     def __next__(self) -> dict:
         try:
             return self._cast(
-                dict(zip(
-                    self._headers,
-                    self._file.readline().strip().split(self._csv_separator)
-                ))
+                dict(
+                    zip(
+                        self._headers,
+                        self._file.readline().strip().split(self._csv_separator),
+                    )
+                )
             )
         except StopIteration:
             self._file.close()
@@ -56,7 +59,9 @@ class TripIterable:
         self.config = config
 
     def __iter__(self) -> TripIterator:
-        return TripIterator(self.config, self._filepath)  # свежий файловый дескриптор каждый раз
+        return TripIterator(
+            self.config, self._filepath
+        )  # свежий файловый дескриптор каждый раз
 
 
 class FilterIterator:
