@@ -9,8 +9,9 @@ if __name__ == "__main__":
     config.raw_file_pattern = "*01.parquet"  # только 1 файл, чтобы не так много ждать
     loader = DataLoader(config)
 
-    # # Если чистых данных нет, то оно само запустит pipeline
-    # clean_df = loader.get_data()
+    # Если чистых данных нет, то оно само запустит pipeline
+    clean_df = loader.get_data()
+    del clean_df  # использовать будем ленивые итераторы
 
     trips = TripIterable(config)
 

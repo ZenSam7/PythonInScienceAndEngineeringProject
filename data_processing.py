@@ -160,7 +160,7 @@ class DataLoader:
 
         print("Чистых данных нет — запускаем пайплайн")
         raw_df = self.load_raw()
-        clean_df = DataCleaner(raw_df).run_all()
+        clean_df = DataCleaner(self.config, raw_df).run_all()
         DataExporter(self.config).to_csv(clean_df)
         return clean_df
 
@@ -193,7 +193,7 @@ class DataCleaner:
     @log_step
     def step3_rename_columns(self) -> "DataCleaner":
         """Переименовываем колонки на русский лад"""
-        self.df = self.df.rename(columns=self.config.COLUMN_RENAME)
+        self.df = self.df.rename(columns=self.config.COLUMNS)
         return self
 
     @log_step
@@ -201,8 +201,8 @@ class DataCleaner:
         """Приводим временные колонки к datetime64"""
         datetime_cols = [
             name
-            for name, type in self.config.COLUMNS_TYPE
-            if type is datetime
+            for name, type in self.config.COLUMNS_TYPE.items()
+            if type == datetime
         ]
 
         for col in datetime_cols:

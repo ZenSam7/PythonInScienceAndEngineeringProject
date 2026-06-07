@@ -13,7 +13,7 @@ class TripIterator:
         # О существовании filepath уже позаботились в TripIterable
         self._file = open(filepath, encoding=config.encoding, newline="")
         self._csv_separator = ","
-        self._headers = self._file.readline().strip().split(self._csv_separator)
+        self._headers = self._file.readline().strip().split(self._csv_separator)  # csv импоритровать не хочу
         self.config = config
 
     def __iter__(self) -> "TripIterator":
