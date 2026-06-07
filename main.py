@@ -4,10 +4,10 @@ from iterators import TripIterable, MapIterator, FilterIterator
 
 if __name__ == "__main__":
     config = PipelineConfig()
+    loader = DataLoader(config)
 
-    raw_df   = DataLoader(config).load()
-    clean_df = DataCleaner(raw_df).run_all()
-    DataExporter(config).to_csv(clean_df)
+    # Если чистых данных нет, то оно само запустит pipeline
+    clean_df = loader.get_data()
 
     # Матрёшка без pandas
     trips = TripIterable(clean_df)

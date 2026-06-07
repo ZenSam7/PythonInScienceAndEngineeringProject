@@ -12,10 +12,11 @@ def log_step(method):
         after = len(self.df)
         dropped = before - after
         tag = f"[{method.__name__}]"
+        print(f"{tag:35} строк: {after:>10,}", end="  ")
         if dropped:
-            print(f"{tag:35} строк: {after:>10,}  (удалено: {dropped:,})")
-        else:
-            print(f"{tag:35} строк: {after:>10,}")
+            print(f"(удалено: {dropped:,})", end="")
+        print()
+        
         return result
     return wrapper
 
@@ -25,7 +26,8 @@ def log_step(method):
 class PipelineConfig:
     data_dir: str = "DataSet"
     output_dir: str = "DataSet"
-    file_pattern: str = "*.parquet"
+    raw_file_pattern: str = "*.parquet"
+    cleaned_file_name: str = "поездки_обработанные.csv"
     _encoding: str = field(default="utf-8-sig", repr=False)  # BOM для Excel
 
     @property
@@ -59,15 +61,39 @@ class DataLoader:
     def __init__(self, config: PipelineConfig):
         self.config = config
 
-    def load(self) -> pd.DataFrame:
+    def load_raw(self) -> pd.DataFrame:
         frames = []
-        for path in pathlib.Path(self.config.data_dir).glob(self.config.file_pattern):
+        for path in pathlib.Path(self.config.data_dir).glob(self.config.raw_file_pattern):
             temp = pd.read_parquet(path, columns=self.VALUABLE_COLUMNS)
             frames.append(temp)
             print(f"  Загружен: {path.name}  ({len(temp):,} строк)")
         df = pd.concat(frames, ignore_index=True)
         print(f"Итого загружено: {len(df):,} строк\n")
         return df
+
+    def load_clean(self) -> pd.DataFrame:
+        """Загружает уже обработанный CSV"""
+        path = pathlib.Path(self.config.output_dir) / self.config.cleaned_file_name
+        if not path.exists():
+            raise FileNotFoundError(f"Чистых данных нет: {path}")
+        df = pd.read_csv(path, encoding=self.config.encoding)
+        print(f"Загружен чистый датасет: {len(df):,} строк ← {path}")
+        return df
+
+    def get_data(self) -> pd.DataFrame:
+        """Если есть уже очищенные данные, то открываем сначала их.
+        если нету, то обрабатываем сырые данные"""
+        clean_path = self.config.output_path / self.config.cleaned_file_name
+
+        if clean_path.exists():
+            print("Найден чистый датасет, пропускаем обработку")
+            return self.load_clean()
+
+        print("Чистых данных нет — запускаем пайплайн")
+        raw_df = self.load_raw()
+        clean_df = DataCleaner(raw_df).run_all()
+        DataExporter(self.config).to_csv(clean_df)
+        return clean_df
 
 
 # ──────────────────────────────────────────────
@@ -182,6 +208,7 @@ class DataExporter:
         self.config = config
 
     def to_csv(self, df: pd.DataFrame, filename: str = "поездки_обработанные.csv") -> pathlib.Path:
+        print("Экспортируем...")
         self.config.output_path.mkdir(exist_ok=True)
         out = self.config.output_path / filename
         df.to_csv(out, index=False, encoding=self.config.encoding)
