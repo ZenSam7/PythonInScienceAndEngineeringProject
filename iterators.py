@@ -1,7 +1,7 @@
 import pathlib
 from typing import Callable, Iterable, Iterator, Any
 from data_processing import Config
-from exceptions import DataValidationError
+from errors import DataValidationError
 
 
 class TripIterator:
