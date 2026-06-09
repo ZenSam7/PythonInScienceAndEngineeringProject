@@ -33,19 +33,23 @@ class DataLoader:
         print(f"Итого загружено: {len(df):,} строк\n")
         return df
 
-    def load_clean(self) -> pd.DataFrame:
-        """Загружает уже обработанный CSV"""
-        path = Path(self.config.output_dir) / self.config.cleaned_file_name
+    def load_clean(self, strategy: ExportStrategy or None = None) -> pd.DataFrame:
+        """Загружает уже обработанный файл.
+        strategy надо указывать если хотите загрузить в выбранном формате (иначе будет по умолчанию)"""
+        clean_path = self.config.get_full_file_path(strategy)
         if not path.exists():
-            raise FileNotFoundError(f"Чистых данных нет: {path}")
-        df = pd.read_csv(path, encoding=self.config.encoding)
-        print(f"Загружен чистый датасет: {len(df):,} строк ← {path}")
+            raise FileNotFoundError(f"Чистых данных нет: {clean_path}")
+
+        df = pd.read_csv(clean_path, encoding=self.config.encoding)
+
+        print(f"Загружен чистый датасет: {len(df):,} строк ← {clean_path}")
         return df
 
     def get_data(self, strategy: ExportStrategy or None = None) -> pd.DataFrame:
         """Если есть уже очищенные данные — открываем их
-        Если нет — обрабатываем сырые данные"""
-        clean_path = self.config.output_path / self.config.cleaned_file_name
+        Если нет — обрабатываем сырые данные
+        strategy нужен только на случай автосоздания чистого датасета"""
+        clean_path = self.config.get_full_file_path(strategy)
 
         if clean_path.exists():
             print("Найден чистый датасет, пропускаем обработку")
@@ -178,8 +182,8 @@ class DataExporter:
 
     def export(self, df: pd.DataFrame, filename: str or None = None) -> Path:
         self.config.output_path.mkdir(exist_ok=True)
-        fname = (filename or self.config.cleaned_file) + \
-            self._strategy.file_extension
+        fname = (filename or self.config.cleaned_file_name) + \
+                self._strategy.file_extension
         out = self.config.output_path / fname
 
         with Timer("Экспорт"):

@@ -56,7 +56,7 @@ class TripIterable:
     """
 
     def __init__(self, config: Config):
-        self._filepath = config.output_path / config.cleaned_file_name
+        self._filepath = config.output_path / config.get_full_cleaned_file_name
         if not self._filepath.exists():
             raise FileNotFoundError(f"Файл не найден: {self._filepath}")
         self.config = config

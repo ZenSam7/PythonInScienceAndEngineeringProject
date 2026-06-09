@@ -25,15 +25,15 @@ def pytest_configure(config):
 # ── Фикстуры ──────────────────────────────────────────────────────────────────
 @pytest.fixture
 def config():
-    """Конфиг с настройками по умолчанию."""
+    """Конфиг с настройками по умолчанию"""
     return Config()
 
 
 @pytest.fixture
 def raw_df():
     """
-    DataFrame с сырыми данными (до rename/очистки).
-    Содержит 2 валидных строки и 1 нулевую (index=2).
+    DataFrame с сырыми данными
+    Содержит 2 валидных строки и 1 нулевую
     """
     return pd.DataFrame(
         {
@@ -58,8 +58,7 @@ def raw_df():
 @pytest.fixture
 def raw_df_valid():
     """
-    DataFrame только с валидными строками (без нулей и NaT).
-    Удобен для тестирования шагов 4-6 и run_all().
+    DataFrame только с валидными строками (без нулей и NaT)
     """
     return pd.DataFrame(
         {

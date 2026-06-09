@@ -24,6 +24,7 @@ def log_step(method):
     return wrapper
 
 
+# ──────────────────────────────────────────────
 class Timer:
     """Контекстный менеджер для засечения времени выполнения кода"""
 
@@ -57,14 +58,17 @@ class Config:
     data_dir: str = "DataSet"
     output_dir: str = "DataSet"
     raw_file_pattern: str = "*.parquet"
-    cleaned_file: str = "обработанные_поездки"  # Без расширения
+    cleaned_file_name: str = "обработанные_поездки"  # Без расширения
     _encoding: str = field(default="utf-8-sig", repr=False)  # BOM для Excel
 
     DEFAULT_EXPORT_STRATEGY: ExportStrategy = CSVExportStrategy()
 
-    @property
-    def cleaned_file_name(self):
-        return self.cleaned_file + self.DEFAULT_EXPORT_STRATEGY.file_extension
+    def get_full_cleaned_file_name(self, strategy: ExportStrategy or None = None) -> str:
+        return self.config.cleaned_file_name + strategy.file_extension() if strategy \
+            else self.cleaned_file_name + self.DEFAULT_EXPORT_STRATEGY.file_extension
+
+    def get_full_file_path(self, strategy: ExportStrategy or None = None) -> Path:
+        return self.output_path / self.get_full_cleaned_file_name(strategy)
 
     @property
     def encoding(self) -> str:
