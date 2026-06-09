@@ -12,19 +12,16 @@ class TripIterator:
 
     def __init__(self, config: Config, filepath: pathlib.Path):
         self._file = open(filepath, encoding=config.encoding, newline="")
-        self._csv_separator = ","
-        self._headers = self._file.readline().strip().split(self._csv_separator)  # csv импоритровать не хочу
         self.config = config
 
     def __iter__(self) -> "TripIterator":
         return self
 
     def __next__(self) -> dict:
-        line = self._file.readline()
-        if not line:          # EOF — файл закрываем сами
+        row = self.config.DEFAULT_EXPORT_STRATEGY.readline(self._file)
+        if not row:          # EOF — файл закрываем сами
             self._file.close()
             raise StopIteration
-        row = dict(zip(self._headers, line.strip().split(self._csv_separator)))
         return self._cast(row)
 
     def _cast(self, row: dict) -> dict or DataValidationError:
@@ -56,7 +53,7 @@ class TripIterable:
     """
 
     def __init__(self, config: Config):
-        self._filepath = config.output_path / config.get_full_cleaned_file_name
+        self._filepath = config.output_path / config.get_full_cleaned_file_name()
         if not self._filepath.exists():
             raise FileNotFoundError(f"Файл не найден: {self._filepath}")
         self.config = config

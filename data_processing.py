@@ -37,10 +37,11 @@ class DataLoader:
         """Загружает уже обработанный файл.
         strategy надо указывать если хотите загрузить в выбранном формате (иначе будет по умолчанию)"""
         clean_path = self.config.get_full_file_path(strategy)
-        if not path.exists():
+        if not clean_path.exists():
             raise FileNotFoundError(f"Чистых данных нет: {clean_path}")
 
-        df = pd.read_csv(clean_path, encoding=self.config.encoding)
+        df = (strategy or self.config.DEFAULT_EXPORT_STRATEGY)\
+            .import_file(clean_path, encoding=self.config.encoding)
 
         print(f"Загружен чистый датасет: {len(df):,} строк ← {clean_path}")
         return df
@@ -183,7 +184,7 @@ class DataExporter:
     def export(self, df: pd.DataFrame, filename: str or None = None) -> Path:
         self.config.output_path.mkdir(exist_ok=True)
         fname = (filename or self.config.cleaned_file_name) + \
-                self._strategy.file_extension
+            self._strategy.file_extension
         out = self.config.output_path / fname
 
         with Timer("Экспорт"):

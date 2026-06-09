@@ -8,16 +8,20 @@ if __name__ == "__main__":
     config = Config()
     config.raw_file_pattern = "*01.parquet"  # только 1 файл, чтобы не так много ждать
     loader = DataLoader(config)
-    export_strategy = JSONExportStrategy()
 
     # Отдельно экспортируем в json
-    with Timer("Экспорт в json из сырых данных"):
-        df = DataCleaner(config, loader.load_raw()).run_all()
-        DataExporter(config, export_strategy).export(df, "данные_в_json")
+    # config.DEFAULT_EXPORT_STRATEGY = JSONExportStrategy()
+    # config.cleaned_file_name = "данные_в_json"
+
+    # with Timer("Экспорт из сырых данных"):
+    #     df = DataCleaner(config, loader.load_raw()).run_all()
+    #     DataExporter(config).export(df)
 
     # # Если чистых данных нет, то оно само запустит pipeline
-    clean_df = loader.get_data(export_strategy)
-    del clean_df  # использовать будем ленивые итераторы
+    # clean_df = loader.get_data()
+    # del clean_df  # использовать будем ленивые итераторы
+
+    print("начинаем лениво")
 
     trips = TripIterable(config)
 

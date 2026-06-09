@@ -64,7 +64,7 @@ class Config:
     DEFAULT_EXPORT_STRATEGY: ExportStrategy = CSVExportStrategy()
 
     def get_full_cleaned_file_name(self, strategy: ExportStrategy or None = None) -> str:
-        return self.config.cleaned_file_name + strategy.file_extension() if strategy \
+        return self.cleaned_file_name + strategy.file_extension() if strategy \
             else self.cleaned_file_name + self.DEFAULT_EXPORT_STRATEGY.file_extension
 
     def get_full_file_path(self, strategy: ExportStrategy or None = None) -> Path:
@@ -130,5 +130,5 @@ class Config:
         float:    float,
         str:      str,
         bool: lambda string: string == "True",
-        datetime: lambda string: datetime.strptime(string, "%Y-%m-%d %H:%M:%S"),
+        datetime: lambda string: datetime.fromisoformat(string),
     }
