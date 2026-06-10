@@ -6,16 +6,16 @@ from strategies import CSVExportStrategy, JSONExportStrategy
 
 if __name__ == "__main__":
     config = Config()
-    config.raw_file_pattern = "*01.parquet"  # только 1 файл, чтобы не так много ждать
+    config.raw_file_pattern = "*.parquet"
     loader = DataLoader(config)
 
     # Отдельно экспортируем в json
     # config.DEFAULT_EXPORT_STRATEGY = JSONExportStrategy()
     # config.cleaned_file_name = "данные_в_json"
 
-    # with Timer("Экспорт из сырых данных"):
-    #     df = DataCleaner(config, loader.load_raw()).run_all()
-    #     DataExporter(config).export(df)
+    with Timer("Экспорт из сырых данных"):
+        df = DataCleaner(config, loader.load_raw()).run_all()
+        DataExporter(config).export(df)
 
     # # Если чистых данных нет, то оно само запустит pipeline
     # clean_df = loader.get_data()

@@ -126,7 +126,7 @@ class DataCleaner:
                 df["тариф"] / df["километры"].replace(0, float("nan"))
         ).round(3)
         df["час_суток"] = df["начало_поездки"].dt.hour
-        df["день_недели"] = df["начало_поездки"].dt.day_name()
+        df["день_недели"] = df["начало_поездки"].dt.day_name().map(self.config.TRANSLATE_WEEK_DAYS)
 
         self.df = df
         return self

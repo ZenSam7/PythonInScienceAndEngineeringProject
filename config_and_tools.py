@@ -1,7 +1,8 @@
-from pathlib import Path
 from dataclasses import dataclass, field
 from datetime import datetime
-from strategies import CSVExportStrategy, ExportStrategy, JSONExportStrategy
+from pathlib import Path
+
+from strategies import CSVExportStrategy, ExportStrategy
 
 
 # ──────────────────────────────────────────────
@@ -76,7 +77,9 @@ class Config:
 
     @property
     def output_path(self) -> Path:
-        return Path(self.output_dir)
+        p = Path(self.output_dir)
+        p.mkdir(exist_ok=True)
+        return p
 
     # Выполняет 2 фукнции:
     # 1) Какие колонны из сырых данных собираем (это ключи)
@@ -123,6 +126,16 @@ class Config:
         "поездка_для_инвалида": bool,
     }
     COLUMNS_TYPE.update(ADDED_COLUMNS)
+
+    TRANSLATE_WEEK_DAYS = {
+        "Sunday":    "Воскресенье",
+        "Monday":    "Понедельник",
+        "Tuesday":   "Вторник",
+        "Wednesday": "Среда",
+        "Thursday":  "Четверг",
+        "Friday":    "Пятница",
+        "Saturday":  "Суббота",
+    }
 
     # Какой тип как мы хотим переводить из строки
     CONVERT_FUNCS = {
